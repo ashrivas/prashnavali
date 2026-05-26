@@ -1,14 +1,15 @@
 import type { Request, Response } from "express";
 import { config } from "../../config";
 import { SessionManager } from "../../core/sessionManager";
-import { InMemorySessionStore } from "../../core/sessionStore";
+import { createSessionStore } from "../../core/sessionStoreFactory";
 import { routeToExperience } from "../../core/experienceRouter";
 import { dispatch } from "../../core/dispatcher";
 import { parseInbound } from "./parse";
 import { sendMessages } from "./sender";
 import { transcribeWhatsAppAudio } from "./voice";
+import { verifySignature } from "./signature";
 
-const sessions = new SessionManager(new InMemorySessionStore());
+const sessions = new SessionManager(createSessionStore());
 
 // Lightweight in-memory dedup so Meta webhook retries are not processed twice.
 const seenMessageIds = new Set<string>();
@@ -37,6 +38,11 @@ export function verifyWebhook(req: Request, res: Response): void {
 // Incoming messages (POST). Ack 200 immediately, then process out of band so
 // Meta does not retry.
 export function receiveWebhook(req: Request, res: Response): void {
+  const rawBody = (req as { rawBody?: Buffer }).rawBody ?? Buffer.alloc(0);
+  if (!verifySignature(rawBody, req.header("x-hub-signature-256"))) {
+    res.sendStatus(401);
+    return;
+  }
   res.sendStatus(200);
   void handle(req.body);
 }
