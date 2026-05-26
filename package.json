@@ -10,7 +10,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test \"src/**/*.test.ts\""
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "gen:grid": "node scripts/generate-grid.cjs"
   },
   "dependencies": {
     "@google-cloud/firestore": "^8.6.0",
@@ -19,6 +20,8 @@
     "express": "^4.21.2"
   },
   "devDependencies": {
+    "@fontsource/noto-sans-devanagari": "^5.2.8",
+    "@napi-rs/canvas": "^1.0.0",
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.5",
     "tsx": "^4.19.2",
