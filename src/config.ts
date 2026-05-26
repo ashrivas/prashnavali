@@ -23,6 +23,10 @@ export const config = {
     location: optional("GCP_LOCATION", "us-central1"),
     geminiModel: optional("GEMINI_MODEL", "gemini-2.0-flash"),
   },
+  assets: {
+    welcomeImageUrl: process.env.WELCOME_IMAGE_URL ?? "",
+    gridImageUrl: process.env.GRID_IMAGE_URL ?? "",
+  },
 };
 
 export { required };

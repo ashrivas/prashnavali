@@ -1,5 +1,24 @@
 import type { Request, Response } from "express";
 import { config } from "../../config";
+import { SessionManager } from "../../core/sessionManager";
+import { InMemorySessionStore } from "../../core/sessionStore";
+import { routeToExperience } from "../../core/experienceRouter";
+import { dispatch } from "../../core/dispatcher";
+import { parseInbound } from "./parse";
+import { sendMessages } from "./sender";
+
+const sessions = new SessionManager(new InMemorySessionStore());
+
+// Lightweight in-memory dedup so Meta webhook retries are not processed twice.
+const seenMessageIds = new Set<string>();
+function alreadyHandled(id: string): boolean {
+  if (seenMessageIds.has(id)) return true;
+  seenMessageIds.add(id);
+  if (seenMessageIds.size > 5000) {
+    seenMessageIds.delete(seenMessageIds.values().next().value as string);
+  }
+  return false;
+}
 
 // Meta verification handshake (GET). Echoes the challenge if the token matches.
 export function verifyWebhook(req: Request, res: Response): void {
@@ -15,18 +34,24 @@ export function verifyWebhook(req: Request, res: Response): void {
 }
 
 // Incoming messages (POST). Ack 200 immediately, then process out of band so
-// Meta does not retry. Processing is wired up in a later milestone.
+// Meta does not retry.
 export function receiveWebhook(req: Request, res: Response): void {
   res.sendStatus(200);
+  void handle(req.body);
+}
 
-  const entry = req.body?.entry?.[0]?.changes?.[0]?.value;
-  const message = entry?.messages?.[0];
-  if (!message) return; // status callbacks etc.
+async function handle(body: unknown): Promise<void> {
+  const parsed = parseInbound(body);
+  if (!parsed) return;
+  if (alreadyHandled(parsed.messageId)) return;
 
-  // TODO(milestone 3): dispatch to session manager + state machine.
-  console.log("[whatsapp] incoming", {
-    from: message.from,
-    type: message.type,
-    id: message.id,
-  });
+  try {
+    const session = await sessions.loadOrCreate("whatsapp", parsed.userId);
+    const experience = routeToExperience();
+    const outgoing = await dispatch(session, parsed.message, experience);
+    await sessions.save(session);
+    await sendMessages(parsed.userId, outgoing);
+  } catch (err) {
+    console.error("[whatsapp] handler error", err);
+  }
 }

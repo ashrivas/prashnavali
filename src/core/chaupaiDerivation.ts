@@ -1,5 +1,7 @@
 import { getAnswerById, totalSquares, type Answer } from "../data/dataset";
 
+export type { Answer } from "../data/dataset";
+
 export const MIN_SQUARE = 1;
 export const MAX_SQUARE = totalSquares; // 225
 
