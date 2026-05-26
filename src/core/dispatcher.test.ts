@@ -56,6 +56,45 @@ test("invalid number re-prompts and stays in NUMBER_PENDING", async () => {
   assert.equal(r.session.square, 10);
 });
 
+test("voice note transcribes into the question and advances to NUMBER_PENDING", async () => {
+  const sessions = new SessionManager(new InMemorySessionStore());
+  const exp = ramPrashnavali;
+  const deps = { transcribe: async () => "क्या यह यात्रा शुभ है?" };
+
+  async function step(msg: IncomingMessage) {
+    const s = await sessions.loadOrCreate("whatsapp", "v1");
+    const out = await dispatch(s, msg, exp, deps);
+    await sessions.save(s);
+    return { state: s.state, out, session: s };
+  }
+
+  await step({ kind: "text", text: "hi" });
+  await step({ kind: "button", buttonId: BTN.ASK, title: "पूछना है" });
+
+  const r = await step({ kind: "audio", audioRef: "media-123" });
+  assert.equal(r.state, "NUMBER_PENDING");
+  assert.equal(r.session.question, "क्या यह यात्रा शुभ है?");
+  assert.ok(r.out[0].kind === "text" && r.out[0].body.includes("यात्रा"));
+});
+
+test("audio without a transcriber falls back to the type-please prompt", async () => {
+  const sessions = new SessionManager(new InMemorySessionStore());
+  const exp = ramPrashnavali;
+
+  async function step(msg: IncomingMessage) {
+    const s = await sessions.loadOrCreate("whatsapp", "v2");
+    const out = await dispatch(s, msg, exp); // no deps
+    await sessions.save(s);
+    return { state: s.state, out };
+  }
+
+  await step({ kind: "text", text: "hi" });
+  await step({ kind: "button", buttonId: BTN.ASK, title: "पूछना है" });
+  const r = await step({ kind: "audio", audioRef: "media-x" });
+  assert.equal(r.state, "QUESTION_PENDING");
+  assert.equal(r.out[0].kind, "text");
+});
+
 test("'ek aur prashna' resets to QUESTION_PENDING", async () => {
   const { step } = await run();
   await step({ kind: "text", text: "hi" });

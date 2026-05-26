@@ -6,6 +6,7 @@ import { routeToExperience } from "../../core/experienceRouter";
 import { dispatch } from "../../core/dispatcher";
 import { parseInbound } from "./parse";
 import { sendMessages } from "./sender";
+import { transcribeWhatsAppAudio } from "./voice";
 
 const sessions = new SessionManager(new InMemorySessionStore());
 
@@ -48,7 +49,9 @@ async function handle(body: unknown): Promise<void> {
   try {
     const session = await sessions.loadOrCreate("whatsapp", parsed.userId);
     const experience = routeToExperience();
-    const outgoing = await dispatch(session, parsed.message, experience);
+    const outgoing = await dispatch(session, parsed.message, experience, {
+      transcribe: transcribeWhatsAppAudio,
+    });
     await sessions.save(session);
     await sendMessages(parsed.userId, outgoing);
   } catch (err) {

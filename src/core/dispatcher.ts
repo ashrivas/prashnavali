@@ -75,12 +75,37 @@ function askPrompt(exp: Experience): OutgoingMessage {
   return { kind: "text", body: exp.copy.askPrompt };
 }
 
+export interface DispatchDeps {
+  transcribe?: (audioRef: string) => Promise<string>;
+}
+
+// Captures a voice note as the question and moves to NUMBER_PENDING. Echoes the
+// transcription so the user can confirm we understood them.
+async function captureVoiceQuestion(
+  session: Session,
+  exp: Experience,
+  audioRef: string,
+  deps: DispatchDeps,
+): Promise<OutgoingMessage[] | null> {
+  if (!deps.transcribe) return null;
+  const transcript = (await deps.transcribe(audioRef)).trim();
+  if (!transcript) return null;
+  session.question = transcript;
+  session.square = null;
+  session.state = "NUMBER_PENDING";
+  return [
+    { kind: "text", body: `🙏 आपका प्रश्न: «${transcript}»` },
+    ...gridMessages(exp),
+  ];
+}
+
 // Drives one inbound message through the session state machine. Mutates the
 // session in place and returns the channel-agnostic outgoing messages.
 export async function dispatch(
   session: Session,
   msg: IncomingMessage,
   exp: Experience,
+  deps: DispatchDeps = {},
 ): Promise<OutgoingMessage[]> {
   const buttonId = msg.kind === "button" ? msg.buttonId : null;
 
@@ -107,8 +132,8 @@ export async function dispatch(
 
     case "QUESTION_PENDING": {
       if (msg.kind === "audio") {
-        // Voice transcription is wired up in milestone 4.
-        return [{ kind: "text", body: exp.copy.askInText }];
+        const out = await captureVoiceQuestion(session, exp, msg.audioRef, deps);
+        return out ?? [{ kind: "text", body: exp.copy.askInText }];
       }
       if (msg.kind === "text") {
         session.question = msg.text.trim();
@@ -159,7 +184,11 @@ export async function dispatch(
         const answer = exp.derive(session.square!);
         return [{ kind: "text", body: exp.formatAnswerCard(answer) }];
       }
-      // Free text after an answer is treated as a fresh question.
+      // A voice note or free text after an answer starts a fresh question.
+      if (msg.kind === "audio") {
+        const out = await captureVoiceQuestion(session, exp, msg.audioRef, deps);
+        return out ?? [askPrompt(exp)];
+      }
       if (msg.kind === "text") {
         session.question = msg.text.trim();
         session.square = null;
