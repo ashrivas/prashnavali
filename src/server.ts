@@ -1,5 +1,6 @@
 import express from "express";
 import { verifyWebhook, receiveWebhook } from "./channels/whatsapp/webhook";
+import { privacyPage, deletionPage } from "./legalPages";
 
 export function createApp() {
   const app = express();
@@ -13,6 +14,8 @@ export function createApp() {
   );
 
   app.get("/healthz", (_req, res) => res.json({ status: "ok" }));
+  app.get("/privacy", (_req, res) => res.type("html").send(privacyPage));
+  app.get("/data-deletion", (_req, res) => res.type("html").send(deletionPage));
 
   app.get("/webhook/whatsapp", verifyWebhook);
   app.post("/webhook/whatsapp", receiveWebhook);
