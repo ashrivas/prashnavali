@@ -86,6 +86,28 @@ gcloud projects add-iam-policy-binding "$PROJECT" \
 Meta sends a `GET` verification request (handled by the app), then delivers
 inbound messages as signed `POST` requests.
 
+## Publish the Meta app
+
+The app serves public privacy and deletion information from the same Cloud Run
+service; no separate hosting is needed. After deployment, open both URLs and
+confirm they load:
+
+- `https://<cloud-run-url>/privacy`
+- `https://<cloud-run-url>/data-deletion`
+
+In Meta App settings → Basic, use these for **Privacy policy URL** and **User
+data deletion → Data deletion instructions URL**. The public contact for both
+pages is `privacy@enfluencer.com`. Review the policy whenever storage or AI
+processing changes. Deletion requests are manual: an operator must verify the
+requester and delete the corresponding `sessions/whatsapp:<number>` document
+from Firestore. The pages do not implement an automated deletion callback.
+
+Review and complete Meta's publishing requirements, then publish the app.
+The current dashboard warns that unpublished apps receive only dashboard test
+webhooks; a successful sample test does not prove live messages reach the bot.
+After publication, send a new message from the verified pilot number and check
+the Cloud Run request and application logs for the complete response flow.
+
 ## Local development
 
 ```sh
